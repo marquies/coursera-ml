@@ -1,0 +1,132 @@
+---
+title: "Machine Learning Assignment"
+author: "Patrick Steinert"
+date: "3 3 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(randomForest)
+library(caret)
+library(ggplot2)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Background
+
+The following analysis examines the data of fitness activity trackers. The data is collected from
+accelerometes
+* on the belt,
+* forearm,
+* arm and 
+* dumbell.
+
+Six participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+# Preparation
+
+The following statements will retrieve the data from the URLs (web access needed) and loads the data into data frames.
+The data source consists out of two files, one containing the training set, the other one the testing dataset.
+
+In the first step NA strings ("NA", "#DIV/0!") will be already converted to NA.
+
+```{r}
+url1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+download.file(url=url1, destfile="pml-training.csv",method="curl")
+download.file(url=url2, destfile="pml-testing.csv",method="curl")
+
+training <- read.csv("pml-training.csv", header=T, na.strings=c("NA", "#DIV/0!"))
+testing <- read.csv("pml-testing.csv", header=T, na.strings=c("NA", "#DIV/0!"))
+```
+
+# Exploring Data
+
+Next step is the exploration of the two data sets. 
+
+```{r}
+dim(training)
+dim(testing)
+
+colnames(training)
+table(training$classe)
+
+sum(is.na(training))
+
+```
+
+Both data sets have 160 features. The training data set contains 19,622 observations, the testing data set just 20.
+
+The freature 'classe' is the classifier.
+
+There are a lot of NA values in the dataset, 1,925,102. Next step is the data preparation:
+
+* Cleaning the NA values 
+* Partitioning the data
+
+```{r}
+trainingWoNa <- training[, apply(training, 2, function(x) !any(is.na(x)))] 
+
+cleanedTraining <- trainingWoNa[,-c(1:8)]
+
+cleanedTesting<-testing[,names(cleanedTraining[,-52])]
+
+inTrain<-createDataPartition(y=cleanedTraining$classe, p=0.75,list=FALSE)
+training<-cleanedTraining[inTrain,] 
+test<-cleanedTraining[-inTrain,] 
+```
+
+# Prediction Process
+
+The problem presenting here is a classification problem, I tried to use the classification method in caret package: classification tree algorithm and random force. I also carried out 3-fold validation using the trainControl function.
+
+As already said we have a classifier. To predict the classification, it is suitable to train two models with the most useful methods: Random Forrest and Recursive Partitioning and Regression Tree.
+
+
+```{r}
+set.seed(4711)
+
+ctrl = trainControl(method="cv",number=3,allowParallel=TRUE,verboseIter=TRUE)
+
+modRf = train(classe~., data=training, method="rf",trControl=ctrl)
+modTree = train(classe~.,data=training,method="rpart",trControl=ctrl)
+
+predRfTraining=predict(modRf,training)
+predTreeTraining=predict(modTree,training)
+
+predRfTesting=predict(modRf,testing)
+predTreeTesting=predict(modTree,testing)
+
+```
+
+Final step in the prediction modelling phase is the performance evaluation between the data sets.
+
+Performance of Random Forrest:
+
+```{r}
+table(predRfTraining,training$classe)
+```
+
+Performance of RPart:
+
+```{r}
+table(predTreeTraining,training$classe)
+```
+
+Performance against each other:
+
+```{r}
+table(predRfTesting,predTreeTesting)
+```
+
+# Conclusion
+
+Finally, I chosed the random forest model to the testing dataset for submission result.
+
+```{r}
+predict(modRf,testing)
+#predictions=predict(modRf,testing)
+#predictions
+```
